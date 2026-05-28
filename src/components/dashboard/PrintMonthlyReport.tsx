@@ -9,6 +9,7 @@
 // Aucune dépendance externe — uniquement window.print().
 // ============================================================
 
+import { createPortal }      from 'react-dom'
 import { format, parseISO } from 'date-fns'
 import { fr }               from 'date-fns/locale'
 
@@ -68,30 +69,32 @@ export default function PrintMonthlyReport({
 
   const hasData = monthStats.daysCount > 0
 
-  return (
+  // Le rapport est rendu directement dans <body> via un portail.
+  // En print : body > *:not(#manitaux-print-report) → display:none
+  // Aucun élément caché ne prend d'espace → une seule page, zéro doublon.
+  return createPortal(
     <>
       {/* ── Styles impression ─────────────────────────────────
-          @media screen  → masque le composant
-          @media print   → masque tout sauf ce composant,
-                           le positionne en haut de page
+          @media screen  → masque le composant (display:none)
+          @media print   → cache TOUS les autres enfants de body,
+                           affiche uniquement ce rapport en flux normal
       ─────────────────────────────────────────────────────── */}
       <style>{`
         @media screen {
           #manitaux-print-report { display: none; }
         }
         @media print {
-          * { visibility: hidden !important; }
-          #manitaux-print-report,
-          #manitaux-print-report * { visibility: visible !important; }
-          #manitaux-print-report {
-            position: fixed !important;
-            inset: 0 !important;
-            width: 100% !important;
-            height: auto !important;
+          html, body {
             background: white !important;
             color: #111 !important;
-            padding: 0 !important;
-            z-index: 99999 !important;
+          }
+          body > *:not(#manitaux-print-report) {
+            display: none !important;
+          }
+          #manitaux-print-report {
+            display: block !important;
+            background: white !important;
+            color: #111 !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif !important;
             font-size: 10pt !important;
             line-height: 1.4 !important;
@@ -338,6 +341,7 @@ export default function PrintMonthlyReport({
         </div>
 
       </div>
-    </>
+    </>,
+    document.body
   )
 }

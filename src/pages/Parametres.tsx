@@ -13,6 +13,7 @@ import {
   Shield,
   LogOut,
   Loader2,
+  Banknote,
 } from 'lucide-react'
 import {
   useSettingsStore,
@@ -364,6 +365,157 @@ function RateForm({ editingYear, initialRate, existingYears, onSave, onCancel }:
 // COMPOSANT PRINCIPAL
 // ============================================================
 
+// ============================================================
+// SECTION RÉMUNÉRATION
+// ============================================================
+
+function RemunerationSection({ onFeedback }: { onFeedback: (msg: string) => void }) {
+  const { hourlyRate, amplitudeBonus, setHourlyRate, setAmplitudeBonus } = useSettingsStore()
+
+  const [editing,    setEditing]    = useState(false)
+  const [rateInput,  setRateInput]  = useState(String(hourlyRate))
+  const [bonusInput, setBonusInput] = useState(String(amplitudeBonus))
+  const [rateErr,    setRateErr]    = useState<string | null>(null)
+  const [bonusErr,   setBonusErr]   = useState<string | null>(null)
+
+  function startEdit() {
+    setRateInput(hourlyRate.toFixed(2))
+    setBonusInput(String(Math.round(amplitudeBonus)))
+    setRateErr(null)
+    setBonusErr(null)
+    setEditing(true)
+  }
+
+  function handleSave() {
+    const r = parseFloat(rateInput)
+    const b = parseFloat(bonusInput)
+    if (isNaN(r) || r <= 0 || r > 9999)  { setRateErr('Valeur invalide (ex : 12.43)'); return }
+    if (isNaN(b) || b < 0  || b > 99999) { setBonusErr('Valeur invalide (ex : 200)');  return }
+    setHourlyRate(r)
+    setAmplitudeBonus(b)
+    setEditing(false)
+    onFeedback('Rémunération mise à jour')
+  }
+
+  function handleCancel() {
+    setRateErr(null)
+    setBonusErr(null)
+    setEditing(false)
+  }
+
+  return (
+    <div className="space-y-3">
+
+      {/* ── Carte récapitulatif — style identique à "Taux de référence" ── */}
+      <div className="bg-blue-600/10 border border-blue-500/25 rounded-2xl px-4 py-3.5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-500/15 p-2.5 rounded-xl">
+            <Banknote size={16} className="text-blue-400" />
+          </div>
+          <div>
+            <p className="text-slate-400 text-xs">Rémunération</p>
+            <p className="text-white text-lg font-black tabular-nums">{hourlyRate.toFixed(2)} €/h</p>
+            <p className="text-slate-500 text-xs mt-0.5">
+              {Math.round(amplitudeBonus)} €
+              <span className="text-slate-600 font-normal"> prime / mois</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Bouton Modifier — à droite, discret */}
+        {!editing && (
+          <button
+            onClick={startEdit}
+            className="flex items-center gap-1.5 text-slate-400 hover:text-blue-300 px-2.5 py-1.5 rounded-xl hover:bg-blue-500/10 transition-colors active:opacity-70"
+          >
+            <Pencil size={13} />
+            <span className="text-xs font-medium">Modifier</span>
+          </button>
+        )}
+      </div>
+
+      {/* ── Mode édition (s'affiche sous la carte) ── */}
+      {editing && (
+        <div className="bg-[#111e35] border border-blue-500/25 rounded-2xl p-4 space-y-4">
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Taux horaire */}
+            <div>
+              <label className="text-slate-500 text-xs block mb-1.5">Taux horaire</label>
+              <div className="relative w-full">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={rateInput}
+                  placeholder="12.43"
+                  autoFocus
+                  onChange={(e) => { setRateInput(e.target.value.replace(/[^0-9.]/g, '')); setRateErr(null) }}
+                  className={`w-full bg-[#080d1a] text-white border rounded-xl px-3 pr-10 py-3 text-sm font-bold tabular-nums text-center focus:border-blue-500/60 focus:outline-none transition-colors placeholder:text-slate-700 ${rateErr ? 'border-red-500/60' : 'border-[#1a2d4a]'}`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">€/h</span>
+              </div>
+              {rateErr && (
+                <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1">
+                  <AlertCircle size={10} />{rateErr}
+                </p>
+              )}
+            </div>
+
+            {/* Prime d'amplitude */}
+            <div>
+              <label className="text-slate-500 text-xs block mb-1.5">Prime / mois</label>
+              <div className="relative w-full">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={bonusInput}
+                  placeholder="200"
+                  onChange={(e) => { setBonusInput(e.target.value.replace(/[^0-9.]/g, '')); setBonusErr(null) }}
+                  className={`w-full bg-[#080d1a] text-white border rounded-xl px-3 pr-8 py-3 text-sm font-bold tabular-nums text-center focus:border-blue-500/60 focus:outline-none transition-colors placeholder:text-slate-700 ${bonusErr ? 'border-red-500/60' : 'border-[#1a2d4a]'}`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">€</span>
+              </div>
+              {bonusErr && (
+                <p className="text-red-400 text-[11px] mt-1 flex items-center gap-1">
+                  <AlertCircle size={10} />{bonusErr}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Boutons */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleCancel}
+              className="flex-1 py-2.5 rounded-xl bg-[#162440] text-slate-300 text-sm font-medium border border-[#1a2d4a] active:opacity-70 transition-opacity"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold active:opacity-80 transition-all"
+            >
+              Enregistrer
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Note */}
+      <div className="flex items-start gap-2 bg-[#080d1a] border border-[#1a2d4a] rounded-xl px-3 py-2.5">
+        <Info size={12} className="text-slate-600 mt-0.5 shrink-0" />
+        <p className="text-slate-600 text-[11px] leading-relaxed">
+          Ces informations servent à estimer votre potentiel d'optimisation dans l'onglet Analyse.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ============================================================
+// COMPOSANT PRINCIPAL
+// ============================================================
+
 export default function Parametres() {
   const { annualRates, setRateForYear, removeRateForYear } = useSettingsStore()
   const { clearAll }   = useDaysStore()
@@ -494,6 +646,17 @@ export default function Parametres() {
             ))
           )}
         </div>
+      </div>
+
+      {/* ── Section Rémunération ────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 mb-3 px-1">
+          <Banknote size={13} className="text-slate-500" />
+          <p className="text-slate-500 text-xs uppercase tracking-widest font-medium">
+            Rémunération
+          </p>
+        </div>
+        <RemunerationSection onFeedback={showFeedback} />
       </div>
 
       {/* ── Section Application ─────────────────────────────── */}

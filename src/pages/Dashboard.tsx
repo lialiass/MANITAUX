@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { ChevronLeft, ChevronRight, PlusCircle, History, BarChart2, Settings, Printer } from 'lucide-react'
+import { ChevronLeft, ChevronRight, PlusCircle, History, BarChart2, Settings, Printer, Download } from 'lucide-react'
 import { parseISO } from 'date-fns'
 import { isThisWeek } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -129,6 +129,81 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     [monthEntries, monthKey]
   )
 
+  // ── Impression (boîte de dialogue navigateur) ────────────
+  function handlePrintMonth() {
+    window.print()
+  }
+
+  // ── Téléchargement PDF direct (sans boîte impression) ────
+  async function handleDownloadMonthPDF() {
+    if (monthStats.daysCount === 0) return
+    const reportEl = document.getElementById('manitaux-print-report')
+    if (!reportEl) return
+
+    // Chargement dynamique des librairies (ne pèse pas sur le bundle initial)
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+      import('html2canvas'),
+      import('jspdf'),
+    ])
+
+    // Conteneur temporaire hors-écran (visible pour html2canvas, pas display:none)
+    const container = document.createElement('div')
+    Object.assign(container.style, {
+      position:   'fixed',
+      top:        '0',
+      left:       '-9999px',
+      width:      '794px',   // ~A4 à 96 dpi
+      background: 'white',
+      color:      '#111',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
+      fontSize:   '10pt',
+      lineHeight: '1.4',
+      padding:    '40px 50px',
+      boxSizing:  'border-box',
+    })
+    container.innerHTML = reportEl.innerHTML
+    document.body.appendChild(container)
+
+    try {
+      const canvas = await html2canvas(container, {
+        scale:           2,
+        useCORS:         true,
+        backgroundColor: '#ffffff',
+        logging:         false,
+      })
+
+      const imgData  = canvas.toDataURL('image/png')
+      const pdf      = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pageW    = pdf.internal.pageSize.getWidth()   // 210 mm
+      const pageH    = pdf.internal.pageSize.getHeight()  // 297 mm
+      const imgH     = (canvas.height * pageW) / canvas.width  // hauteur totale en mm
+
+      // Page 1
+      pdf.addImage(imgData, 'PNG', 0, 0, pageW, imgH)
+
+      // Pages supplémentaires si le rapport déborde
+      let remaining = imgH - pageH
+      let yOffset   = -pageH
+      while (remaining > 0) {
+        pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, yOffset, pageW, imgH)
+        remaining -= pageH
+        yOffset   -= pageH
+      }
+
+      // Nom du fichier — "manitaux-recap-mai-2026.pdf"
+      const safeName = monthLabel
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')  // enlève les accents
+        .replace(/\s+/g, '-')
+        .toLowerCase()
+      pdf.save(`manitaux-recap-${safeName}.pdf`)
+
+    } finally {
+      document.body.removeChild(container)
+    }
+  }
+
   // ── Rendu ─────────────────────────────────────────────────
   return (
     <div className="space-y-4">
@@ -241,22 +316,26 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           />
         </div>
 
-        {/* Bouton impression — pleine largeur, sous les 4 actions */}
-        <button
-          onClick={() => window.print()}
-          disabled={monthStats.daysCount === 0}
-          className="mt-3 w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl border border-[#1a2d4a] bg-[#0e1628] text-slate-400 hover:text-slate-200 hover:border-[#243e6a] disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
-        >
-          <Printer size={17} />
-          <span className="text-[12px] font-medium">
-            Imprimer le mois
-            {monthStats.daysCount > 0 && (
-              <span className="ml-1.5 text-slate-600 font-normal capitalize">
-                · {monthLabel}
-              </span>
-            )}
-          </span>
-        </button>
+        {/* Boutons impression / téléchargement — sous les 4 actions */}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            onClick={handlePrintMonth}
+            disabled={monthStats.daysCount === 0}
+            className="flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-[#1a2d4a] bg-[#0e1628] text-slate-400 hover:text-slate-200 hover:border-[#243e6a] disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+          >
+            <Printer size={16} />
+            <span className="text-[12px] font-medium">Imprimer</span>
+          </button>
+
+          <button
+            onClick={handleDownloadMonthPDF}
+            disabled={monthStats.daysCount === 0}
+            className="flex items-center justify-center gap-2 py-3.5 rounded-2xl border border-[#1a2d4a] bg-[#0e1628] text-slate-400 hover:text-slate-200 hover:border-[#243e6a] disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+          >
+            <Download size={16} />
+            <span className="text-[12px] font-medium">Télécharger</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Rapport imprimable (invisible à l'écran) ────── */}

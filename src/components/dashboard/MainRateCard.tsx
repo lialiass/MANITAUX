@@ -101,13 +101,14 @@ export default function MainRateCard({ monthStats, referenceRatePercent, monthLa
     ? `${diffPts > 0 ? '+' : ''}${diffPts.toFixed(1)} pt${Math.abs(diffPts) >= 2 ? 's' : ''}`
     : '—'
 
-  // Statut textuel aligné sur les seuils sweet-spot
-  const statusLabel = !hasData               ? 'Aucune donnée'
-    : currentRate < 14  ? 'Trop bas'
-    : currentRate < 18  ? 'En deçà de l\'objectif'
-    : currentRate <= 20 ? 'Objectif atteint'
-    : currentRate <= 26 ? 'Au-dessus de l\'objectif'
-    :                     'Seuil dépassé'
+  // Statut textuel aligné sur les seuils sweet-spot + logique d'optimisation
+  const statusLabel = !hasData                ? 'Aucune donnée'
+    : currentRate < 14   ? 'Optimisation inutile'
+    : currentRate < 18   ? 'Optimisation envisageable'
+    : currentRate <= 20  ? 'Objectif atteint'
+    : currentRate < 24   ? 'Optimisation envisageable'
+    : currentRate <= 26  ? 'Optimisation inutile'
+    :                      'Seuil dépassé'
 
   // Max jauge = 1.5 × référence
   const gaugeMax = referenceRatePercent * 1.5

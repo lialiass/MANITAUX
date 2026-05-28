@@ -20,6 +20,13 @@
   }
 }
 
+@media print {
+  html, body {
+    background: white !important;
+    color: #111 !important;
+  }
+}
+
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;

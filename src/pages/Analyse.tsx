@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
-import { useDaysStore }    from '../store/useDaysStore'
-import { useRateForYear }  from '../store/useSettingsStore'
+import { useDaysStore }        from '../store/useDaysStore'
+import { useRateForYear, useSettingsStore } from '../store/useSettingsStore'
 import { calcDayStats, calcMonthStats } from '../lib/calculations'
 import {
   currentMonthKey,
@@ -17,7 +17,8 @@ import MonthlyRateChart   from '../components/analysis/MonthlyRateChart'
 import GapEvolutionChart  from '../components/analysis/GapEvolutionChart'
 import DrivingWorkChart   from '../components/analysis/DrivingWorkChart'
 import AmplitudeChart     from '../components/analysis/AmplitudeChart'
-import DayRankingCard     from '../components/analysis/DayRankingCard'
+import DayRankingCard          from '../components/analysis/DayRankingCard'
+import OptimizationTrialCard  from '../components/analysis/OptimizationTrialCard'
 
 // ------------------------------------------------------------
 // Type partagé — point de données pour tous les graphiques
@@ -50,7 +51,8 @@ export interface ChartDataPoint {
 // ------------------------------------------------------------
 
 export default function Analyse() {
-  const { days } = useDaysStore()
+  const { days }                    = useDaysStore()
+  const { hourlyRate, amplitudeBonus } = useSettingsStore()
 
   // ── Sélecteur de mois ─────────────────────────────────────
   const [monthKey, setMonthKey] = useState(currentMonthKey())
@@ -158,6 +160,14 @@ export default function Analyse() {
 
       {/* ── Classement des journées ───────────────────────── */}
       <DayRankingCard chartData={chartData} />
+
+      {/* ── Optimisation financière (fin de mois uniquement) ─ */}
+      <OptimizationTrialCard
+        monthStats={monthStats}
+        monthKey={monthKey}
+        hourlyRate={hourlyRate}
+        amplitudeBonus={amplitudeBonus}
+      />
 
     </div>
   )

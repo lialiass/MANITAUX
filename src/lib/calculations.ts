@@ -366,6 +366,91 @@ export function calcMonthStats(
 }
 
 // ------------------------------------------------------------
+// MODULE D'OPTIMISATION FINANCIÈRE
+// ------------------------------------------------------------
+
+/**
+ * Paliers de majoration horaire selon les heures de service mensuel.
+ *   ≤ 152 h → ×1.00 (taux de base)
+ *   > 152 h et ≤ 186 h → ×1.25
+ *   > 186 h → ×1.50
+ */
+export function getHourlyMultiplier(monthlyServiceHours: number): number {
+  if (monthlyServiceHours > 186) return 1.50
+  if (monthlyServiceHours > 152) return 1.25
+  return 1.00
+}
+
+/**
+ * Calcule le nombre de jours ouvrés (lundi–vendredi) restants dans le mois
+ * à partir du lendemain de la date courante jusqu'à la fin du mois indiqué.
+ *
+ * calcRemainingBusinessDays("2026-05") → nombre de jours lun-ven restants
+ */
+export function calcRemainingBusinessDays(monthKey: string): number {
+  const today   = new Date()
+  const [year, month] = monthKey.split('-').map(Number)
+  const daysInMonth   = new Date(year, month, 0).getDate()
+
+  let count = 0
+  for (let d = today.getDate() + 1; d <= daysInMonth; d++) {
+    const dow = new Date(year, month - 1, d).getDay() // 0=dim, 6=sam
+    if (dow !== 0 && dow !== 6) count++
+  }
+  return count
+}
+
+/**
+ * Calcule la valeur financière potentielle du solde de minutes disponibles.
+ *   potential (€) = (gapMins / 60) × hourlyRate × multiplier
+ *
+ * Retourne 0 si le solde est négatif (on ne peut rien récupérer).
+ */
+export function calcFinancialPotential(
+  monthlyGapMins: number,
+  hourlyRate: number,
+  multiplier: number
+): number {
+  if (monthlyGapMins <= 0) return 0
+  return (monthlyGapMins / 60) * hourlyRate * multiplier
+}
+
+/**
+ * Calcule combien d'heures de travail annexe équivalent à la prime d'amplitude.
+ *   bonusEquivHours = amplitudeBonus / (hourlyRate × multiplier)
+ */
+export function calcBonusEquivalentHours(
+  amplitudeBonus: number,
+  hourlyRate: number,
+  multiplier: number
+): number {
+  const effectiveRate = hourlyRate * multiplier
+  if (effectiveRate <= 0) return 0
+  return amplitudeBonus / effectiveRate
+}
+
+/** Statut de l'optimisation : vert / orange / rouge */
+export type OptimizationStatus = 'green' | 'orange' | 'red'
+
+/**
+ * Détermine le statut de l'optimisation :
+ *   - green  : potentiel ≥ prime d'amplitude (objectif atteignable)
+ *   - orange : 0 < potentiel < prime (récupération partielle)
+ *   - red    : solde négatif ou nul (aucune marge)
+ */
+export function calcOptimizationStatus(
+  monthlyGapMins: number,
+  amplitudeBonus: number,
+  hourlyRate: number,
+  multiplier: number
+): OptimizationStatus {
+  if (monthlyGapMins <= 0) return 'red'
+  const potential = calcFinancialPotential(monthlyGapMins, hourlyRate, multiplier)
+  if (potential >= amplitudeBonus) return 'green'
+  return 'orange'
+}
+
+// ------------------------------------------------------------
 // PROJECTION DE FIN DE MOIS
 // ------------------------------------------------------------
 
@@ -376,6 +461,7 @@ export interface ProjectionResult {
   projectedServiceMins: number
   projectedServiceRatePercent: number
   projectedGapMins: number | null
+  /** Jours ouvrés (lun–ven) restants jusqu'à la fin du mois */
   daysRemaining: number
   daysWorked: number
 }
@@ -383,14 +469,14 @@ export interface ProjectionResult {
 /**
  * Projette les statistiques en fin de mois en extrapolant le rythme actuel.
  *
- * Base de calcul :
- *   moyenne journalière = total / jours travaillés
- *   projection = total + moyenne × jours restants dans le mois
+ * Formule :
+ *   projection = total déjà saisi + moyenne journalière × jours ouvrés restants
+ *
+ * "Jours ouvrés" = lundi à vendredi uniquement (sam/dim exclus).
  *
  * Retourne null si :
  *   - aucune journée saisie
  *   - le mois n'est pas le mois courant (projection hors-sens)
- *   - plus aucun jour restant (fin de mois atteinte)
  *
  * @param entries    journées saisies du mois
  * @param monthKey   format "yyyy-MM" (ex: "2026-04")
@@ -408,11 +494,8 @@ export function calcMonthProjection(
   const currentKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   if (monthKey !== currentKey) return null
 
-  // Jours du mois et jours restants (0 le dernier jour → on affiche quand même)
-  const [year, month]  = monthKey.split('-').map(Number)
-  const daysInMonth    = new Date(year, month, 0).getDate()
-  const daysRemaining  = Math.max(0, daysInMonth - today.getDate())
-  // Pas de sortie anticipée : la projection reste visible jusqu'au dernier jour
+  // Jours ouvrés restants (lun–ven, à partir du lendemain)
+  const daysRemaining = calcRemainingBusinessDays(monthKey)
 
   const totalDriving = entries.reduce((a, e) => a + e.drivingMins, 0)
   const totalWork    = entries.reduce((a, e) => a + e.workMins, 0)
@@ -420,9 +503,9 @@ export function calcMonthProjection(
   const avgDriving = totalDriving / daysWorked
   const avgWork    = totalWork    / daysWorked
 
-  // Formule : moyenne journalière × total des jours du mois
-  const projectedDrivingMins = Math.round(avgDriving * daysInMonth)
-  const projectedWorkMins    = Math.round(avgWork    * daysInMonth)
+  // Formule correcte : total saisi + moyenne × jours ouvrés restants
+  const projectedDrivingMins = Math.round(totalDriving + avgDriving * daysRemaining)
+  const projectedWorkMins    = Math.round(totalWork    + avgWork    * daysRemaining)
   const projectedServiceMins = calcServiceMins(projectedDrivingMins, projectedWorkMins)
 
   const projectedServiceRatePercent = calcServiceRatePercent(projectedWorkMins, projectedServiceMins)

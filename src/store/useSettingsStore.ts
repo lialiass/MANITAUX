@@ -21,14 +21,30 @@ export type AnnualRate = {
   referenceRatePercent: number
 }
 
+// Taux horaire de base (€/h) et prime d'amplitude fixe (€)
+// Stockés uniquement en localStorage — chaque utilisateur les configure.
+export const DEFAULT_HOURLY_RATE    = 12.43
+export const DEFAULT_AMPLITUDE_BONUS = 200
+
 interface SettingsStore {
   annualRates: AnnualRate[]
+
+  /** Taux horaire de base (€/h). */
+  hourlyRate: number
+  /** Prime d'amplitude mensuelle fixe (€). */
+  amplitudeBonus: number
 
   /** Ajoute ou met à jour le taux d'une année. */
   setRateForYear: (year: number, rate: number) => void
 
   /** Supprime la config d'une année (retombe sur DEFAULT). */
   removeRateForYear: (year: number) => void
+
+  /** Met à jour le taux horaire. */
+  setHourlyRate: (rate: number) => void
+
+  /** Met à jour la prime d'amplitude. */
+  setAmplitudeBonus: (bonus: number) => void
 
   /** Vide les taux (déconnexion). */
   clearAll: () => void
@@ -61,6 +77,13 @@ export const useSettingsStore = create<SettingsStore>()(
           referenceRatePercent: DEFAULT_REFERENCE_RATE_PERCENT,
         },
       ],
+
+      hourlyRate:    DEFAULT_HOURLY_RATE,
+      amplitudeBonus: DEFAULT_AMPLITUDE_BONUS,
+
+      // ── Rémunération ───────────────────────────────────────
+      setHourlyRate:    (rate)  => set({ hourlyRate: rate }),
+      setAmplitudeBonus: (bonus) => set({ amplitudeBonus: bonus }),
 
       // ── Ajout / mise à jour ────────────────────────────────
       setRateForYear: (year, rate) => {
