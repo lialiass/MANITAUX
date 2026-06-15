@@ -148,20 +148,26 @@ export function calcServiceRatePercent(workMins: number, serviceMins: number): n
  * Calcule l'amplitude en minutes à partir de deux horaires "HH:MM".
  *   amplitudeMins = endTime - startTime
  *
+ * Supporte les journées de nuit (fin le lendemain) :
+ *   si endTime < startTime → on ajoute 24h (1440 min)
+ *
  * Retourne null si :
  *   - l'un des formats est invalide
- *   - fin <= début (journée incohérente)
+ *   - amplitude = 0 (même heure début/fin)
  *
- * calcAmplitudeMins("06:10", "17:30") → 680  (soit 11h20)
- * calcAmplitudeMins("17:30", "06:10") → null
+ * calcAmplitudeMins("06:10", "17:30") → 680   (11h20, même jour)
+ * calcAmplitudeMins("22:00", "13:00") → 900   (15h00, fin J+1)
+ * calcAmplitudeMins("23:30", "04:30") → 300   (5h00,  fin J+1)
  * calcAmplitudeMins("abc",   "17:30") → null
  */
 export function calcAmplitudeMins(startTime: string, endTime: string): number | null {
   const start = hhmmToMinutes(startTime)
   const end   = hhmmToMinutes(endTime)
   if (start === null || end === null) return null
-  if (end <= start) return null
-  return end - start
+  let amplitude = end - start
+  if (amplitude < 0) amplitude += 24 * 60   // fin le lendemain (journée de nuit)
+  if (amplitude === 0) return null            // même heure = invalide
+  return amplitude
 }
 
 // ------------------------------------------------------------

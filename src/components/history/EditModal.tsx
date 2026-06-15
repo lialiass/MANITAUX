@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { X, Zap, AlertCircle, Clock, CalendarDays } from 'lucide-react'
-import { calcDayStats, minutesToReadable, type DayEntry } from '../../lib/calculations'
+import { calcDayStats, calcAmplitudeMins, hhmmToMinutes, minutesToReadable, type DayEntry } from '../../lib/calculations'
 import { useDaysStore } from '../../store/useDaysStore'
 import { useRateForYear } from '../../store/useSettingsStore'
 import { txServiceTextColor } from '../../lib/colors'
@@ -172,14 +172,27 @@ export default function EditModal({ entry, onClose }: EditModalProps) {
     return calcDayStats({ drivingMins, workMins, startTime, endTime }, referenceRatePercent)
   }, [drivingMins, workMins, startTime, endTime])
 
+  // ── Indicateur journée de nuit (fin < début) ──────────────
+  const isOvernight = useMemo(() => {
+    if (!startTime || !endTime) return false
+    const s = hhmmToMinutes(startTime)
+    const e = hhmmToMinutes(endTime)
+    if (s === null || e === null) return false
+    return e < s
+  }, [startTime, endTime])
+
   // ── Validation ────────────────────────────────────────────
   function validate(): Record<string, string> {
     const errs: Record<string, string> = {}
-    if (!date)                                        errs.date        = 'Date requise'
-    if (!startTime)                                   errs.startTime   = 'Heure de début requise'
-    if (!endTime)                                     errs.endTime     = 'Heure de fin requise'
-    if (startTime && endTime && endTime <= startTime) errs.endTime     = 'La fin doit être après le début'
-    if (drivingMins <= 0)                             errs.drivingMins = 'Conduite > 0 requis'
+    if (!date)      errs.date        = 'Date requise'
+    if (!startTime) errs.startTime   = 'Heure de début requise'
+    if (!endTime)   errs.endTime     = 'Heure de fin requise'
+    if (startTime && endTime) {
+      const ampMins = calcAmplitudeMins(startTime, endTime)
+      if (ampMins === null)        errs.endTime = 'Horaires invalides'
+      else if (ampMins > 15 * 60) errs.endTime = 'L\'amplitude ne peut pas dépasser 15h'
+    }
+    if (drivingMins <= 0) errs.drivingMins = 'Conduite > 0 requis'
     return errs
   }
 
@@ -286,7 +299,12 @@ export default function EditModal({ entry, onClose }: EditModalProps) {
 
                 {/* Fin de service */}
                 <div className="min-w-0">
-                  <label className="text-slate-500 text-xs block mb-1.5">Fin de service</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-slate-500 text-xs">Fin de service</label>
+                    {isOvernight && (
+                      <span className="text-[10px] font-semibold text-amber-400/80 bg-amber-400/10 px-1.5 py-0.5 rounded-md">J+1</span>
+                    )}
+                  </div>
                   <input
                     type="time"
                     value={endTime}

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { CheckCircle2, AlertCircle, Clock, CalendarDays, Zap, WifiOff } from 'lucide-react'
-import { calcDayStats, minutesToReadable } from '../lib/calculations'
+import { calcDayStats, calcAmplitudeMins, hhmmToMinutes, minutesToReadable } from '../lib/calculations'
 import { useDaysStore } from '../store/useDaysStore'
 import { useRateForYear } from '../store/useSettingsStore'
 import { txServiceTextColor } from '../lib/colors'
@@ -188,14 +188,26 @@ export default function Saisie() {
     )
   }, [drivingMins, workMins, startTime, endTime])
 
+  // ── Indicateur journée de nuit (fin < début) ──────────────
+  const isOvernight = useMemo(() => {
+    if (!startTime || !endTime) return false
+    const s = hhmmToMinutes(startTime)
+    const e = hhmmToMinutes(endTime)
+    if (s === null || e === null) return false
+    return e < s
+  }, [startTime, endTime])
+
   // ── Validation ────────────────────────────────────────────
   function validate(): Record<string, string> {
     const errs: Record<string, string> = {}
     if (!date)      errs.date      = 'La date est requise'
     if (!startTime) errs.startTime = 'L\'heure de début est requise'
     if (!endTime)   errs.endTime   = 'L\'heure de fin est requise'
-    if (startTime && endTime && endTime <= startTime)
-      errs.endTime = 'L\'heure de fin doit être après l\'heure de début'
+    if (startTime && endTime) {
+      const ampMins = calcAmplitudeMins(startTime, endTime)
+      if (ampMins === null)        errs.endTime = 'Horaires invalides'
+      else if (ampMins > 15 * 60) errs.endTime = 'L\'amplitude ne peut pas dépasser 15h'
+    }
     if (drivingMins <= 0)
       errs.drivingMins = 'Le temps de conduite doit être supérieur à 0'
     return errs
@@ -319,7 +331,12 @@ export default function Saisie() {
 
             {/* Fin de service */}
             <div className="min-w-0">
-              <label className="text-slate-500 text-xs block mb-1.5">Fin de service</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-slate-500 text-xs">Fin de service</label>
+                {isOvernight && (
+                  <span className="text-[10px] font-semibold text-amber-400/80 bg-amber-400/10 px-1.5 py-0.5 rounded-md">J+1</span>
+                )}
+              </div>
               <input
                 type="time"
                 value={endTime}
